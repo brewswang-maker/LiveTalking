@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华小盾 · 迎宾</title>
+<style>
+  :root{--gold:#e1a94b;--bg:#12101a;--text:#f3ede3;--muted:#9a90a6;--ok:#2ecc71;--mic:#2d6cdf;--rec:#e74c3c;}
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0;font-family:'Inter','PingFang SC',system-ui,sans-serif;background:var(--bg);color:var(--text);
+       display:flex;flex-direction:column;overflow:hidden;}
+  header{flex:0 0 auto;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;}
+  header h1{margin:0;font-size:16px;letter-spacing:1px;color:var(--gold);font-weight:800;}
+  #status{font-size:11px;padding:4px 10px;border-radius:20px;background:#2a2334;color:var(--muted);}
+  #status.on{background:#1e3a2a;color:#7ef0b0;}
+  #gear{background:none;border:none;color:#5c5568;font-size:18px;cursor:pointer;padding:2px 6px;}
+  #gear:hover{color:var(--gold);}
+
+  main{flex:1 1 auto;display:flex;align-items:center;justify-content:center;position:relative;min-height:0;}
+  #stage{position:relative;height:100%;aspect-ratio:720/1280;max-width:100%;background:#000;border-radius:10px;overflow:hidden;
+         display:flex;align-items:center;justify-content:center;}
+  #video{width:100%;height:100%;object-fit:contain;}
+  #intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+         padding:30px;text-align:center;background:linear-gradient(160deg,#2b1f33,#141020);}
+  #introImg{max-width:88%;max-height:58%;border-radius:12px;object-fit:contain;box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  #introTitle{font-size:26px;color:var(--gold);font-weight:800;letter-spacing:2px;}
+  #introText{font-size:16px;line-height:1.8;white-space:pre-wrap;max-width:520px;}
+  #subtitle{position:absolute;left:0;right:0;bottom:0;padding:14px 18px;font-size:20px;line-height:1.5;text-align:center;
+            color:#fff;text-shadow:0 2px 6px #000;background:linear-gradient(transparent,rgba(0,0,0,.65));min-height:54px;}
+
+  /* 底部：只有一个大麦克风 */
+  footer{flex:0 0 auto;padding:18px 16px 26px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+  #btnMic{width:92px;height:92px;border-radius:50%;border:none;cursor:pointer;color:#fff;font-size:34px;
+          background:radial-gradient(circle at 50% 35%,#4d84e6,var(--mic));box-shadow:0 8px 26px rgba(45,108,223,.45);
+          display:flex;align-items:center;justify-content:center;transition:transform .12s,background .25s,box-shadow .25s;}
+  #btnMic:active{transform:scale(.94);}
+  #btnMic:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+  #btnMic.listening{background:radial-gradient(circle at 50% 35%,#ff6b5e,var(--rec));box-shadow:0 0 0 0 rgba(231,76,60,.6);
+                    animation:ring 1.4s infinite;}
+  #btnMic.processing{background:radial-gradient(circle at 50% 35%,#f0c674,#c68a2e);animation:spin 1s linear infinite;}
+  @keyframes ring{0%{box-shadow:0 0 0 0 rgba(231,76,60,.55);}70%{box-shadow:0 0 0 22px rgba(231,76,60,0);}100%{box-shadow:0 0 0 0 rgba(231,76,60,0);}}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #hint{font-size:15px;color:var(--text);min-height:22px;text-align:center;}
+  #hint small{display:block;font-size:12px;color:var(--muted);margin-top:2px;}
+
+  /* 文字输入栏：与语音并列，常驻且简洁 */
+  #textRow{display:flex;gap:8px;width:100%;max-width:460px;}
+  #textRow.hide{display:none;}
+  #textInput{flex:1;background:#0d0b12;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:24px;padding:13px 18px;font-size:16px;}
+  #textInput:focus{outline:none;border-color:var(--gold);}
+  #btnSend{border:none;border-radius:24px;padding:0 22px;font-weight:700;font-size:15px;color:#241d05;cursor:pointer;background:linear-gradient(135deg,var(--gold),#c68a2e);}
+  #btnSend:active{transform:scale(.96);}
+  .hide{display:none !important;}
+  #toast{position:fixed;top:52px;left:50%;transform:translateX(-50%);background:#000000dd;color:#fff;padding:10px 18px;
+         border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:50;}
+  #toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐯 <span id="avatarName">华小盾</span></h1>
+  <span id="status">未连接</span>
+  <button id="gear" title="设置" onclick="location.href='/huadun_settings.html'">⚙️</button>
+</header>
+
+<main>
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <audio id="audio" autoplay></audio>
+    <div id="intro">
+      <div id="introTitle">华盾公司</div>
+      <img id="introImg" alt="" style="display:none;">
+      <div id="introText">您好，我是华小盾。</div>
+    </div>
+    <div id="subtitle"></div>
+  </div>
+</main>
+
+<footer>
+  <button id="btnMic" disabled title="说话">🎙️</button>
+  <div id="hint">正在启动…</div>
+  <div id="textRow" class="hide">
+    <input id="textInput" type="text" placeholder="也可以打字提问，回车发送" onkeydown="if(event.key==='Enter')sendText()">
+    <button id="btnSend" onclick="sendText()">发送 ➤</button>
+  </div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+// 配置来自设置页(localStorage)；对话页保持极简
+const DEF_CFG={avatarId:'huadun',voice:'',mode:'chat',greetOnStart:true,autoConnect:true,allowText:true,showIntro:true};
+let cfg={...DEF_CFG}, pc=null, sessionid=null, evtSource=null, kb={}, greetText='';
+let asrWs=null, audioCtx=null, mediaStream=null, procNode=null, micState='idle', processingTimer=null;
+// 静音自动停止(VAD)参数
+const SPEECH_TH=0.02, SILENCE_MS=1000, MAX_MS=15000;
+let speechDetected=false, startTs=0, lastVoiceTs=0;
+
+function loadCfg(){ try{ const s=localStorage.getItem('huadun_cfg'); if(s) cfg={...DEF_CFG,...JSON.parse(s)}; }catch(e){} }
+
+async function loadKB(){
+  try{
+    const r=await fetch('/api/kb'); const j=await r.json(); kb=j.data||{};
+    if(kb.avatar_name) document.getElementById('avatarName').textContent=kb.avatar_name;
+    if(kb.greeting) greetText=kb.greeting;
+    const intro=kb.intro||{};
+    document.getElementById('introTitle').textContent=intro.title||'公司介绍';
+    document.getElementById('introText').textContent=intro.text||'您好，我是华小盾。';
+    if(intro.image){ const img=document.getElementById('introImg');
+      img.onload=()=>img.style.display='block'; img.onerror=()=>img.style.display='none';
+      img.src='/'+intro.image.replace(/^\/+/,''); }
+  }catch(e){ console.warn('KB 载入失败',e); }
+}
+
+// ── WebRTC ──
+function negotiate(){
+  pc.addTransceiver('video',{direction:'recvonly'});
+  pc.addTransceiver('audio',{direction:'recvonly'});
+  return pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>new Promise(res=>{
+    if(pc.iceGatheringState==='complete')return res();
+    const c=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',c);res();}};
+    pc.addEventListener('icegatheringstatechange',c);
+  })).then(()=>{
+    const o=pc.localDescription, body={sdp:o.sdp,type:o.type};
+    if(cfg.avatarId) body.avatar=cfg.avatarId;
+    if(cfg.voice) body.refaudio=cfg.voice;
+    return fetch('/offer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }).then(r=>r.json()).then(a=>{
+    if(a.code&&a.code!==0)throw new Error(a.msg||'server error');
+    if(!a.sdp)throw new Error('no SDP');
+    if(a.sessionid) sessionid=a.sessionid;
+    return pc.setRemoteDescription(new RTCSessionDescription({type:'answer',sdp:a.sdp}));
+  }).catch(e=>{ toast('连接失败：'+(e.message||e)); setStatus(false); setHint('连接失败，请刷新重试'); });
+}
+function connect(){
+  if(pc) return;
+  pc=new RTCPeerConnection({sdpSemantics:'unified-plan'});
+  pc.addEventListener('track',ev=>{
+    if(ev.track.kind==='video') document.getElementById('video').srcObject=ev.streams[0];
+    else document.getElementById('audio').srcObject=ev.streams[0];
+  });
+  pc.addEventListener('connectionstatechange',()=>{
+    if(pc.connectionState==='connected'){ setStatus(true); openSSE(); onConnected(); }
+    else if(['disconnected','failed','closed'].includes(pc.connectionState)){ setStatus(false); }
+  });
+  negotiate();
+}
+async function onConnected(){
+  document.getElementById('btnMic').disabled=false;
+  setHint('点击麦克风，问华小盾任何问题','说完会自动识别，无需再点');
+  if(!cfg.greetOnStart) return;
+  document.getElementById('intro').classList.add('hide');
+  try{ await post('/set_audiotype',{audiotype:2,sessionid:String(sessionid)}); }catch(e){}
+  if(greetText) humanSay(greetText,'echo');
+}
+
+// ── SSE 字幕 ──
+function openSSE(){
+  if(evtSource) evtSource.close();
+  evtSource=new EventSource('/sse?sessionid='+encodeURIComponent(sessionid));
+  evtSource.onmessage=ev=>{ try{ const d=JSON.parse(ev.data);
+    if(d.status==='start') setSubtitle(d.text||'');
+    else if(d.status==='end') setSubtitle('');
+  }catch(_){} };
+}
+
+// ── 提问 ──
+async function humanSay(text,type){
+  const d=await post('/human',{text,type,interrupt:true,sessionid:String(sessionid)});
+  if(d&&d.code&&d.code!==0) toast('发送失败：'+(d.msg||''));
+  return d;
+}
+
+// ── 麦克风：点一下开始，说完自动停 ──
+async function onMicTap(){
+  if(micState==='idle') return startMic();
+  if(micState==='listening') return stopMic(true);   // 提前手动结束
+  // processing 中忽略
+}
+async function startMic(){
+  if(!sessionid){ toast('请先连接数字人'); return; }
+  try{ mediaStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1}}); }
+  catch(e){ return toast('无法开麦：'+e.message+'（需 HTTPS 访问）'); }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  asrWs=new WebSocket(`${proto}://${location.host}/api/asr`);
+  asrWs.onopen=()=>asrWs.send(JSON.stringify({chunk_size:[5,10,5],wav_name:'h5',is_speaking:true,chunk_interval:10,mode:'offline',itn:true}));
+  asrWs.onmessage=ev=>{ let d; try{ d=JSON.parse(ev.data); }catch(_){ return; }
+    if(!d.is_final) return;
+    clearTimeout(processingTimer); closeWs(); setMicState('idle'); setSubtitle('');
+    const t=(d.text||'').trim();
+    if(t) humanSay(t,cfg.mode||'chat'); else setHint('没听清，请再说一次',''); };
+  asrWs.onerror=()=>{ toast('语音识别连接失败：服务器需装 funasr / nginx 放行 /api/asr 的 WS'); };
+  asrWs.onclose=()=>{
+    if(micState==='listening'){ stopCapture(); setMicState('idle'); }
+    else if(micState==='processing'){ clearTimeout(processingTimer); setMicState('idle'); setHint('识别连接中断',''); }
+  };
+  audioCtx=new AudioContext(); const src=audioCtx.createMediaStreamSource(mediaStream);
+  procNode=audioCtx.createScriptProcessor(4096,1,1);
+  const sink=audioCtx.createGain(); sink.gain.value=0; // 零增益防啸叫
+  src.connect(procNode); procNode.connect(sink); sink.connect(audioCtx.destination);
+  speechDetected=false; startTs=performance.now(); lastVoiceTs=startTs;
+  procNode.onaudioprocess=e=>{
+    if(micState!=='listening'||!asrWs||asrWs.readyState!==1)return;
+    const ch=e.inputBuffer.getChannelData(0);
+    // 计算能量(RMS) 做静音检测
+    let sum=0; for(let i=0;i<ch.length;i++){ const v=ch[i]; sum+=v*v; }
+    const rms=Math.sqrt(sum/ch.length), now=performance.now();
+    if(rms>=SPEECH_TH){ speechDetected=true; lastVoiceTs=now; }
+    asrWs.send(floatTo16BitPCM(ch,audioCtx.sampleRate));
+    if(speechDetected && now-lastVoiceTs>SILENCE_MS) return stopMic(true); // 说完→自动停
+    if(now-startTs>MAX_MS) return stopMic(true);                            // 超时兜底
+  };
+  setMicState('listening');
+}
+function stopMic(finish){
+  if(asrWs&&asrWs.readyState===1&&finish) asrWs.send(JSON.stringify({is_speaking:false}));  // 必须：否则服务端不跑识别
+  setMicState('processing'); setHint('识别中…','');
+  stopCapture();   // 停麦（熄灭红点），但保留 asrWs 等结果
+  clearTimeout(processingTimer);
+  // 首次会现场加载 SenseVoice，可能几十秒，给足超时兜底
+  processingTimer=setTimeout(()=>{ if(micState==='processing'){ closeWs(); setMicState('idle'); setHint('识别超时：首次使用需等模型加载，请再试一次',''); } }, 60000);
+}
+function stopCapture(){
+  if(procNode){try{procNode.disconnect();}catch(e){} procNode=null;}
+  if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
+  if(audioCtx){audioCtx.close().catch(()=>{});audioCtx=null;}
+}
+function closeWs(){ if(asrWs){try{asrWs.close();}catch(e){} asrWs=null;} }
+function teardownMic(){ stopCapture(); closeWs(); }
+function setMicState(s){
+  micState=s; const b=document.getElementById('btnMic');
+  b.classList.toggle('listening',s==='listening');
+  b.classList.toggle('processing',s==='processing');
+  b.textContent = s==='listening'?'👂' : s==='processing'?'⏳' : '🎙️';
+  if(s==='listening') setHint('正在聆听…请说您的问题','说完自动识别');
+  if(s==='idle') setHint('点击麦克风，问华小盾任何问题','说完会自动识别，无需再点');
+}
+function floatTo16BitPCM(input,oRate){
+  const tRate=16000, ratio=oRate/tRate, len=Math.floor(input.length/ratio);
+  const buf=new ArrayBuffer(len*2), view=new DataView(buf);
+  for(let i=0;i<len;i++){ let s=Math.max(-1,Math.min(1,input[Math.floor(i*ratio)]));
+    view.setInt16(i*2,s<0?s*0x8000:s*0x7FFF,true);} return buf;
+}
+
+// ── 文字提问 ──
+async function sendText(){
+  const el=document.getElementById('textInput'); const q=(el.value||'').trim(); if(!q)return;
+  el.value=''; setHint(''); await humanSay(q,cfg.mode||'chat');
+  setHint('点击麦克风，问华小盾任何问题','说完会自动识别，无需再点');
+}
+
+// ── 工具 ──
+function post(url,body){ return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>{}); }
+function setStatus(on){ const b=document.getElementById('status'); b.className=on?'on':''; b.textContent=on?'已连接':'未连接'; }
+function setSubtitle(t){ document.getElementById('subtitle').textContent=t||''; }
+function setHint(a,b){ const el=document.getElementById('hint');
+  el.innerHTML=a+(b?'<small>'+b+'</small>':''); }
+let toastTimer=null;
+function toast(m){ const el=document.getElementById('toast'); el.textContent=m; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3500); }
+
+window.addEventListener('load',async()=>{
+  loadCfg();
+  document.getElementById('btnMic').onclick=onMicTap;
+  if(cfg.allowText) document.getElementById('textRow').classList.remove('hide');
+  if(!cfg.showIntro) document.getElementById('intro').classList.add('hide');
+  await loadKB();
+  if(cfg.autoConnect) connect(); else setHint('点右上角或刷新开始','');
+});
+window.addEventListener('beforeunload',()=>{ if(evtSource)evtSource.close(); });
+</script>
+</body>
+</html>

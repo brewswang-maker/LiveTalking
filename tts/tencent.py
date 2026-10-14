@@ -131,7 +131,10 @@ class TencentTTS(BaseTTS):
                 while streamlen >= self.chunk:
                     eventpoint={}
                     if first:
-                        eventpoint={'status':'start','text':text}
+                        # P1 viseme: 流式拿不到整句时长，用首块样本数估算音频进度 ms
+                        # （低估 → 时间线提前走完回退 RMS，不阻塞播放）
+                        eventpoint={'status':'start','text':text,
+                                    'duration_ms': int(stream.shape[0] * 1000 / self.sample_rate)}
                         first = False
                     eventpoint.update(**textevent) 
                     self.parent.put_audio_frame(stream[idx:idx+self.chunk],eventpoint)

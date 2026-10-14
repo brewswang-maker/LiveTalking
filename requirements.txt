@@ -34,6 +34,7 @@ flask
 #flask_sockets
 opencv-python-headless
 aiortc
+aiohttp
 aiohttp_cors
 
 #ffmpeg-python
@@ -53,6 +54,9 @@ dashscope
 #onnxruntime-gpu
 
 # Local ASR server (SenseVoice/FunASR) — Issue #604
-# Optional: remove these lines if you don't need local ASR
-#funasr
-#modelscope
+# 本项目需语音输入，默认启用；若不需要可注释
+funasr
+modelscope
+
+# mouthdict P1 文本 viseme（可选：缺失自动回退 RMS 音量路线）
+pypinyin

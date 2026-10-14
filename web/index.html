@@ -216,6 +216,20 @@
                 </div>
             </div>
 
+            <!-- 6. Mouthdict 四层协同 (情绪 / 鼠标上报) -->
+            <div class="glass-card">
+                <div class="card-header"><i class="bi bi-emoji-smile"></i> 情绪切换 (POST /mood)</div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn-outline-custom btn-sm" onclick="setMood('neutral')">中性</button>
+                        <button class="btn-outline-custom btn-sm" onclick="setMood('happy')">开心</button>
+                        <button class="btn-outline-custom btn-sm" onclick="setMood('surprised')">惊讶</button>
+                        <button class="btn-outline-custom btn-sm" onclick="setMood('thinking')">思考</button>
+                    </div>
+                    <div class="form-text mt-2">需 --enable_emotion=1 且 expression_dir 有对应整帧图集。鼠标在视频上移动会自动上报至 /mouse（--enable_gaze=1 时驱动视线）。</div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -410,6 +424,37 @@ function setAudiotype() {
         body: JSON.stringify({ audiotype: val, sessionid: String(sessionid) }),
     }).then(r => r.json()).then(d => console.log('set_audiotype:', d));
 }
+
+// ─── Mouthdict 四层协同：鼠标上报 + 情绪切换 ────────────────────
+function setMood(mood, fadeMs) {
+    if (!sessionid) return alert('请先连接 WebRTC');
+    fetch('/mood', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mood: mood, fade_ms: fadeMs || 250, sessionid: String(sessionid) }),
+    }).then(r => r.json()).then(d => console.log('mood:', mood, d));
+}
+
+(function attachMouseTracker() {
+    const video = document.getElementById('video');
+    if (!video) return;
+    let lastSent = 0;
+    video.addEventListener('mousemove', (ev) => {
+        if (!sessionid) return;
+        const now = Date.now();
+        if (now - lastSent < 100) return;  // 10 Hz 限流，避免无意义冲击服务端
+        lastSent = now;
+        const rect = video.getBoundingClientRect();
+        // 上报视频内部坐标（与后端 frame_size 对齐）
+        const x = ((ev.clientX - rect.left) / rect.width) * (video.videoWidth || rect.width);
+        const y = ((ev.clientY - rect.top) / rect.height) * (video.videoHeight || rect.height);
+        fetch('/mouse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x, y, sessionid: String(sessionid) }),
+        }).catch(() => {});  // 失败静默，不阻断交互
+    });
+})();
 
 </script>
 </body>

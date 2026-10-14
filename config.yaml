@@ -4,9 +4,9 @@
 ###############################################################################
 
 # -------- Audio ----------------------------------------------------------
-l: 10
+l: 6
 m: 8
-r: 10
+r: 8
 
 # -------- Avatar Model ----------------------------------------------------------
 model: wav2lip                 # musetalk / wav2lip / ultralight
@@ -25,6 +25,7 @@ TTS_SERVER: ''                 # TTS server URL, no trailing slash
 # -------- LLM ----------------------------------------------------------
 llm_provider: dashscope        # dashscope / orcarouter
 llm_model: ''                  # model override, empty = provider default (qwen-plus / orcarouter/auto)
+kb_path: 'data/huadun_kb.json'   # 公司知识库 JSON（chat 模式注入 system prompt；文件不存在时自动回退通用提示）
 
 # -------- Transport ----------------------------------------------------------
 transport: webrtc              # rtcpush / webrtc / rtmp / virtualcam

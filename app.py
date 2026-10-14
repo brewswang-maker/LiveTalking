@@ -132,6 +132,7 @@ def main():
         'musetalk':   'avatars.musetalk_avatar',
         'wav2lip':    'avatars.wav2lip_avatar',
         'ultralight': 'avatars.ultralight_avatar',
+        'mouthdict':  'avatars.mouthdict_avatar',
     }
     import importlib
     avatar_mod = importlib.import_module(_avatar_modules[opt.model])
@@ -152,6 +153,10 @@ def main():
         model = load_model(opt)
         global_avatars[opt.avatar_id] = load_avatar(opt.avatar_id)
         warm_up(opt.batch_size,global_avatars[opt.avatar_id],160)
+    elif opt.model == 'mouthdict':
+        model = None
+        global_avatars[opt.avatar_id] = load_avatar(opt.avatar_id)
+        warm_up(opt.batch_size)   # 无神经网络，no-op
 
     # init rtc manager
     session_manager.set_max_session(opt.max_session)

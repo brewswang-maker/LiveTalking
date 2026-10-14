@@ -113,7 +113,7 @@ class LipReal(BaseAvatar):
         self.asr = MelASR(opt,self)
         self.asr.warm_up()
     
-    def inference_batch(self, index, audiofeat_batch):
+    def inference_batch(self, index, audiofeat_batch, audio_frames=None):
         # 这里的 index 是针对当前 avatar 的索引
         # 返回一个 batch 的推理结果，batch 大小由 self.batch_size 决定
         length = len(self.face_list_cycle)
@@ -125,7 +125,19 @@ class LipReal(BaseAvatar):
         img_batch, audiofeat_batch = np.asarray(img_batch), np.asarray(audiofeat_batch)
 
         img_masked = img_batch.copy()
-        img_masked[:, face.shape[0]//2:] = 0
+        # v5 遮罩：只抹嘴部矩形（core y124~200 x48~208，外羽化 8px），
+        # 下巴/脖颈/衣领保留原图作强条件 → 网络非嘴区透传拷贝≈输入，
+        # 贴回渐变带因此不可见，从根本上消除颈/领残影与逐帧跳变
+        m = getattr(self, "_mouth_mask", None)
+        if m is None or m.shape[:2] != img_batch.shape[1:3]:
+            mh, mw = img_batch.shape[1], img_batch.shape[2]
+            cy0, cy1, cx0, cx1 = 124, 200, 48, 208
+            yy, xx = np.mgrid[0:mh, 0:mw]
+            dy = np.maximum(np.maximum(cy0 - yy, yy - (cy1 - 1)), 0)
+            dx = np.maximum(np.maximum(cx0 - xx, xx - (cx1 - 1)), 0)
+            m = np.clip(1.0 - np.maximum(dy, dx) / 8.0, 0, 1).astype(np.float32)
+            self._mouth_mask = m
+        img_masked = (img_batch * (1.0 - m)[None, :, :, None]).astype(img_batch.dtype)
 
         img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
         audiofeat_batch = np.reshape(audiofeat_batch, [len(audiofeat_batch), audiofeat_batch.shape[1], audiofeat_batch.shape[2], 1])
@@ -139,10 +151,67 @@ class LipReal(BaseAvatar):
         return pred
 
     def paste_back_frame(self,pred_frame,idx:int):
+        """软融合贴回 v6（v5 静态 alpha + pred 偏差逐帧动态保护）：
+        - 顶部：y<23.5% 保留眼睛/额头原图，23.5%~37% 过渡到 pred
+        - 列窗：pred 限于 x 56~200（嘴角并集），两侧羽化到 0.03
+        - 底部：232 行起渐变到 0.03（bbox 底边回原图）
+        - v6 动态保护：嘴下区（y≥200）网络透传拷贝失真（截图长方形虚影），
+          按 pred 与原图偏差逐像素压制 alpha，高斯+EMA 时间平滑防逐帧跳；
+          嘴驱动区（y<200）不保护
+        """
         bbox = self.coord_list_cycle[idx]
-        combine_frame = self.frame_list_cycle[idx].copy()
+        # 兼容 dict 格式 coords.pkl（P1 升级后含 mouth/eyes）
+        if isinstance(bbox, dict):
+            bbox = bbox["mouth"]
         y1, y2, x1, x2 = bbox
-        res_frame = cv2.resize(pred_frame.astype(np.uint8),(x2-x1,y2-y1))
-        combine_frame[y1:y2, x1:x2] = res_frame
-        return combine_frame
+        h, w = y2 - y1, x2 - x1
+        body = self.frame_list_cycle[idx].copy()
+        res = cv2.resize(pred_frame.astype(np.uint8), (w, h), interpolation=cv2.INTER_CUBIC)
+
+        # 静态分量缓存：行顶部 profile + 列窗 profile
+        cache = getattr(self, "_alpha_cache", None)
+        if cache is None or cache[0] != (h, w):
+            base_top = np.full((h,), 1.0, dtype=np.float32)
+            y_eye_end = int(h * 0.235)
+            y_mouth_top = int(h * 0.37)
+            base_top[:y_eye_end] = 0.03
+            for y in range(y_eye_end, y_mouth_top):
+                base_top[y] = 0.03 + 0.97 * ((y - y_eye_end) / max(y_mouth_top - y_eye_end - 1, 1))
+            colprof = np.full((w,), 1.0, dtype=np.float32)
+            x_l0, x_l1, x_r0, x_r1 = 36, 56, 200, 220
+            colprof[:x_l0] = 0.03
+            colprof[x_r1:] = 0.03
+            for x in range(x_l0, x_l1):
+                colprof[x] = 0.03 + 0.97 * ((x - x_l0) / max(x_l1 - x_l0 - 1, 1))
+            for x in range(x_r0, x_r1):
+                colprof[x] = 1.0 - 0.97 * ((x - x_r0) / max(x_r1 - x_r0 - 1, 1))
+            self._alpha_cache = ((h, w), base_top, colprof)
+            cache = self._alpha_cache
+        base_top, colprof = cache[1], cache[2]
+
+        roi_u8 = body[y1:y2, x1:x2]
+        # 行底部 profile：232 以上 1.0，232~250 渐变到 0.03（bbox 底边回原图）
+        rowbot = np.full((h,), 0.03, dtype=np.float32)
+        y0 = min(232, h - 1)
+        rowbot[:y0] = 1.0
+        for y in range(y0, min(250, h)):
+            rowbot[y] = 1.0 - 0.97 * ((y - y0) / max(min(250, h) - y0 - 1, 1))
+        alpha = ((base_top * rowbot)[:, None] * colprof[None, :])[..., None]
+
+        # v6 动态保护：嘴下区（y≥200）pred 与原图偏差大 = 网络透传失真（长方形虚影），
+        # 逐像素压制 alpha；高斯平滑边界 + EMA 时间平滑消除逐帧跳变
+        diff = np.abs(res.astype(np.int16) - roi_u8.astype(np.int16)).mean(axis=2)
+        prot = np.clip((diff - 8.0) / 24.0, 0, 1).astype(np.float32)
+        prot[:min(200, h), :] = 0.0
+        prot = cv2.GaussianBlur(prot, (5, 5), 0)
+        ema = getattr(self, "_prot_ema", None)
+        if ema is None or ema.shape != prot.shape:
+            self._prot_ema = prot
+        else:
+            self._prot_ema = 0.7 * ema + 0.3 * prot
+        alpha = alpha * (1.0 - 0.97 * self._prot_ema)[..., None]
+
+        roi = roi_u8.astype(np.float32)
+        body[y1:y2, x1:x2] = (res.astype(np.float32) * alpha + roi * (1.0 - alpha)).astype(np.uint8)
+        return body
 

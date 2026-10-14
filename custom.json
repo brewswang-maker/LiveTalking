@@ -1,0 +1,16 @@
+[
+  {
+    "audiotype": 1,
+    "imgpath": "data/avatars/huadun_idle"
+  },
+  {
+    "audiotype": 2,
+    "imgpath": "data/avatars/huadun_salute",
+    "audiopath": "data/avatars/huadun_salute.wav"
+  },
+  {
+    "audiotype": 3,
+    "imgpath": "data/avatars/huadun_beckon",
+    "audiopath": "data/avatars/huadun_beckon.wav"
+  }
+]

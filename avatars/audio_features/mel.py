@@ -36,7 +36,13 @@ class MelASR(BaseASR):
         # get a frame of audio
         for _ in range(self.batch_size*2):
             audioframe = self.get_audio_frame()
-            self.frames.append(audioframe.data)
+            # 静音帧前向填充（带衰减）：避免 mel 全零导致神经网络输出闭嘴
+            # output_queue 仍放原始静音（播放正常），只有 self.frames 用衰减帧
+            if audioframe.type == 1 and self.frames:
+                decay = 0.4  # 3 帧后衰减到 6.4%，基本归零
+                self.frames.append(self.frames[-1] * decay)
+            else:
+                self.frames.append(audioframe.data)
             # put to output
             self.output_queue.put(audioframe)
         # context not enough, do not run network.

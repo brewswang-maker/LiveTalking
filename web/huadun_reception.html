@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华小盾 · 智能迎宾</title>
+<style>
+  :root{--primary:#c0392b;--gold:#e1a94b;--bg:#1a1420;--panel:#241d2e;--text:#f3ede3;--muted:#a99fb0;--ok:#2ecc71;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter','PingFang SC',system-ui,sans-serif;background:radial-gradient(1200px 600px at 70% -10%,#3a2a3f,#1a1420);color:var(--text);min-height:100vh;}
+  header{padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);}
+  header h1{margin:0;font-size:18px;letter-spacing:1px;}
+  header h1 .badge{color:var(--gold);font-weight:700;}
+  .header-right{display:flex;align-items:center;gap:12px;}
+  #statusBadge{font-size:12px;padding:5px 12px;border-radius:16px;background:#3a2a2a;color:#ff8f8f;transition:background .2s,color .2s;}
+  #statusBadge.on{background:#1e3a2a;color:#7ef0b0;}
+  #statusBadge.thinking{background:#3a3320;color:#f0c674;}
+  #statusBadge.listening{background:#1e2f3a;color:#7ec8f0;}
+  #statusBadge.speaking{background:#2a1e3a;color:#c99cf0;}
+  #btnSettings{background:none;border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer;}
+  #btnSettings:hover{background:rgba(255,255,255,.08);}
+
+  .wrap{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;padding:18px 24px;max-width:1360px;margin:0 auto;}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr;}}
+
+  /* 视频舞台 */
+  .stage-panel{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;}
+  #stage{position:relative;aspect-ratio:720/1280;max-height:72vh;background:#000;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  #video{width:100%;height:100%;object-fit:contain;display:none;}
+  #intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px;text-align:center;background:linear-gradient(160deg,#2b1f33,#1a1420);}
+  #introImg{max-width:90%;max-height:60%;border-radius:12px;object-fit:contain;box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  #introTitle{font-size:24px;color:var(--gold);font-weight:800;letter-spacing:2px;}
+  #introText{font-size:15px;line-height:1.8;color:var(--text);white-space:pre-wrap;max-width:520px;}
+  #subtitle{position:absolute;left:0;right:0;bottom:0;padding:12px 16px;font-size:18px;line-height:1.5;text-align:center;color:#fff;text-shadow:0 2px 6px #000;background:linear-gradient(transparent,rgba(0,0,0,.6));min-height:48px;}
+
+  /* 控制面板 */
+  .ctrl-panel{display:flex;flex-direction:column;gap:16px;}
+  .section{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px;}
+  .section h3{margin:0 0 10px;font-size:14px;color:var(--gold);letter-spacing:1px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+  .row:last-child{margin-bottom:0;}
+  input,textarea{background:#120e17;color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;font-size:14px;width:100%;}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;transition:transform .12s,filter .2s;color:#fff;}
+  button:active{transform:scale(.96);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-main{background:linear-gradient(135deg,var(--primary),#8e2a20);}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),#c68a2e);color:#241d05;}
+  .btn-ghost{background:#33283c;color:var(--text);}
+  .btn-mic{background:#2d6cdf;}
+  .btn-mic.rec{background:#e74c3c;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{filter:brightness(1.35);}}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;}
+
+  /* 摄像头迎宾预览 */
+  #camPreview{width:100%;max-width:220px;border-radius:8px;background:#000;display:none;aspect-ratio:4/3;object-fit:cover;margin-top:4px;}
+  #camStatus{font-size:12px;color:var(--muted);margin-top:6px;}
+  #camStatus.cam-on{color:#7ef0b0;}
+
+  /* 设置模态框 */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:24px;width:90%;max-width:560px;max-height:80vh;overflow-y:auto;}
+  .modal h2{margin:0 0 16px;font-size:18px;color:var(--gold);}
+  .modal .close-btn{position:absolute;top:12px;right:16px;font-size:22px;cursor:pointer;color:var(--muted);background:none;border:none;}
+  .modal section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06);}
+  .modal section:last-child{border-bottom:none;margin-bottom:0;}
+  .modal section h3{margin:0 0 10px;font-size:14px;color:var(--gold);}
+  .modal label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;}
+  .modal input,.modal select{background:#120e17;color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;font-size:14px;width:100%;}
+
+  /* 对话记录 */
+  #chatlog{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+  .msg{padding:7px 11px;border-radius:9px;font-size:13px;max-width:88%;line-height:1.4;}
+  .msg.user{align-self:flex-end;background:#2d6cdf;}
+  .msg.bot{align-self:flex-start;background:#33283c;}
+  .msg.sys{align-self:center;background:transparent;color:var(--muted);font-size:11px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐯 <span class="badge" id="avatarName">华小盾</span> · 智能迎宾</h1>
+  <div class="header-right">
+    <span id="statusBadge">未连接</span>
+    <button id="btnSettings" onclick="openSettings()">⚙️ 设置</button>
+    <button id="btnTest" onclick="location.href='huadun_test.html'" title="API 测试面板">🧪 测试</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- 左：数字人视频 -->
+  <div class="stage-panel">
+    <div id="stage">
+      <video id="video" autoplay playsinline muted controls></video>
+      <audio id="audio" autoplay></audio>
+      <div id="intro">
+        <div id="introTitle">华盾公司</div>
+        <img id="introImg" alt="" style="display:none;">
+        <div id="introText">公司介绍占位。</div>
+      </div>
+      <div id="subtitle"></div>
+    </div>
+  </div>
+
+  <!-- 右：简洁控制 -->
+  <div class="ctrl-panel">
+    <!-- 对话输入 -->
+    <div class="section">
+      <h3>💬 对话</h3>
+      <div class="row">
+        <textarea id="question" rows="2" placeholder="输入问题，或点麦克风语音提问…"></textarea>
+      </div>
+      <div class="row">
+        <button class="btn-main" id="btnAsk" onclick="askText()" disabled>发送</button>
+        <button class="btn-mic" id="btnMic" onclick="toggleMic()" disabled>🎙️ 语音提问</button>
+        <button class="btn-ghost" id="btnStopTalk" onclick="interrupt()" disabled>✋ 打断</button>
+      </div>
+      <div class="hint" id="micHint"></div>
+    </div>
+
+    <!-- 动作测试 -->
+    <div class="section">
+      <h3>🎭 动作测试</h3>
+      <div class="row">
+        <button class="btn-ghost" id="btnAct0" onclick="doAction(0)" disabled>归零</button>
+        <button class="btn-ghost" id="btnAct1" onclick="doAction(1)" disabled>待机</button>
+        <button class="btn-ghost" id="btnAct2" onclick="doAction(2)" disabled>敬礼</button>
+        <button class="btn-ghost" id="btnAct3" onclick="doAction(3)" disabled>招手</button>
+      </div>
+      <div class="row">
+        <input id="customAudiotype" type="number" min="0" max="99" value="4" style="width:70px;" placeholder="ID">
+        <button class="btn-ghost" id="btnActCustom" onclick="doAction(Number(val('customAudiotype'))||0)" disabled>触发自定义</button>
+      </div>
+      <div class="row">
+        <input id="actionText" placeholder="动作配词" value="您好，我是华小盾，欢迎光临！" style="flex:1;">
+        <button class="btn-gold" id="btnActSpeak" onclick="beckonThenSpeak()" disabled>先动后说</button>
+      </div>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="section">
+      <h3>🫡 迎宾</h3>
+      <div class="row">
+        <button class="btn-gold" id="btnReception" onclick="startReception()">开始迎宾</button>
+        <button class="btn-ghost" id="btnStopLoop" onclick="stopWelcomeLoop()" style="display:none;">停止循环</button>
+      </div>
+      <div class="row">
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="chkAutoLoop" onchange="toggleWelcomeLoop(this.checked)">
+          自动循环迎宾（空闲 <input id="loopInterval" type="number" min="10" max="300" value="30" style="width:50px;padding:3px 6px;font-size:12px;"> 秒后触发）
+        </label>
+      </div>
+      <div class="hint">流程：敬礼 → 招手 → 微笑 → 问候语 → 进入聆听</div>
+    </div>
+  
+    <!-- 摄像头迎宾 -->
+    <div class="section">
+      <h3>📷 摄像头迎宾</h3>
+      <div class="row">
+        <button class="btn-ghost" id="btnCam" onclick="toggleCamera()">开启摄像头</button>
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="chkCamWelcome"> 识别到人自动迎宾
+        </label>
+      </div>
+      <video id="camPreview" muted playsinline></video>
+      <canvas id="camCanvas" width="80" height="60" style="display:none;"></canvas>
+      <div id="camStatus" class="hint">未开启</div>
+      <div class="hint">优先用浏览器 FaceDetector；不支持时回退为“画面动作”启发式检测。需在 HTTPS 下授权摄像头。</div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置模态框 -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal" style="position:relative;">
+    <button class="close-btn" onclick="closeSettings()">✕</button>
+    <h2>⚙️ 设置</h2>
+
+    <section>
+      <h3>连接配置</h3>
+      <div class="row">
+        <div style="flex:1;"><label>Avatar ID</label><input id="offerAvatar" value="huadun"></div>
+        <div style="flex:1;"><label>TTS 音色</label><input id="offerRefAudio" value="zh-CN-XiaoxiaoNeural"></div>
+      </div>
+      <div class="row">
+        <button class="btn-main" id="btnStart" onclick="connect()">连接数字人</button>
+        <button class="btn-ghost" id="btnDisconnect" onclick="disconnect()" style="display:none;">断开连接</button>
+      </div>
+      <div class="hint" id="offerError" style="color:#ff8f8f;"></div>
+    </section>
+
+    <section>
+      <h3>迎宾流程</h3>
+      <div class="row">
+        <button class="btn-ghost" id="btnSalute" onclick="doSalute()" disabled>单独敬礼</button>
+      </div>
+      <div class="hint">「开始迎宾」按钮在主界面右侧。敬礼后自动播放问候语（来自知识库 greeting 字段）。</div>
+    </section>
+
+    <section>
+      <h3>对话记录</h3>
+      <div id="chatlog"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+let pc=null, sessionid=null, kb={}, greetText="";
+let evtSource=null, asrWs=null, audioCtx=null, mediaStream=null, procNode=null, currentBotBubble=null;
+// 麦克风状态机：idle | listening | processing
+let micState='idle', speechDetected=false, startTs=0, lastVoiceTs=0, processingTimer=null;
+const SPEECH_TH=0.02, SILENCE_MS=1200, MAX_MS=15000;
+// ③ 思考占位
+const THINK_TEXT='华小盾思考中…';
+let inThinking=false;
+// ⑦ 摄像头迎宾
+let camStream=null, camTimer=null, faceDetector=null, lastFrame=null, lastWelcome=0;
+
+// ─── 设置面板 ──────────────────────────────────────────────
+function openSettings(){ document.getElementById('settingsModal').classList.add('open'); }
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
+
+// ─── 载入知识库 ────────────────────────────────────────────
+async function loadKB(){
+  try{
+    const r=await fetch('/api/kb'); const j=await r.json(); kb=j.data||{};
+    if(kb.avatar_name) document.getElementById('avatarName').textContent=kb.avatar_name;
+    if(kb.greeting) greetText=kb.greeting;
+    const intro=kb.intro||{};
+    document.getElementById('introTitle').textContent=intro.title||'公司介绍';
+    document.getElementById('introText').textContent=intro.text||'';
+    if(intro.image){ const img=document.getElementById('introImg');
+      img.onload=()=>{img.style.display='block';}; img.onerror=()=>{img.style.display='none';};
+      img.src='/'+intro.image.replace(/^\/+/,''); }
+  }catch(e){ console.warn('KB 载入失败',e); }
+}
+
+// ─── WebRTC ────────────────────────────────────────────────
+function negotiate(){
+  pc.addTransceiver('video',{direction:'recvonly'});
+  pc.addTransceiver('audio',{direction:'recvonly'});
+  return pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>new Promise(res=>{
+    if(pc.iceGatheringState==='complete')return res();
+    const c=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',c);res();}};
+    pc.addEventListener('icegatheringstatechange',c);
+  })).then(()=>{
+    const o=pc.localDescription;
+    return fetch('/offer',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sdp:o.sdp,type:o.type,avatar:val('offerAvatar')||undefined,refaudio:val('offerRefAudio')||undefined})});
+  }).then(r=>r.json()).then(a=>{
+    if(a.code&&a.code!==0)throw new Error(a.msg||'server error');
+    if(!a.sdp)throw new Error('no SDP');
+    if(a.sessionid)setSession(a.sessionid);
+    return pc.setRemoteDescription(new RTCSessionDescription({type:'answer',sdp:a.sdp}));
+  }).catch(e=>{showErr(e.message||String(e));if(pc){pc.close();pc=null;}setStatus(false);});
+}
+function connect(){
+  showErr(''); const config={sdpSemantics:'unified-plan'};
+  pc=new RTCPeerConnection(config);
+  pc.addEventListener('track',ev=>{ if(ev.track.kind==='video')document.getElementById('video').srcObject=ev.streams[0];
+    else document.getElementById('audio').srcObject=ev.streams[0]; });
+  pc.addEventListener('connectionstatechange',()=>{
+    if(pc.connectionState==='connected'){setStatus(true);openSSE();}
+    else if(['disconnected','failed','closed'].includes(pc.connectionState)){setStatus(false);}
+  });
+  negotiate();
+  document.getElementById('btnStart').style.display='none';
+  document.getElementById('btnDisconnect').style.display='inline-block';
+}
+function disconnect(){ if(evtSource){evtSource.close();evtSource=null;} clearTimeout(processingTimer); teardownMic(); micState='idle'; setMicState('idle');
+  if(pc){pc.close();pc=null;} setStatus(false); setSession(null); inThinking=false;
+  document.getElementById('video').srcObject=null;
+  document.getElementById('btnStart').style.display='inline-block';
+  document.getElementById('btnDisconnect').style.display='none';
+  ['btnAsk','btnMic','btnStopTalk','btnSalute','btnAct0','btnAct1','btnAct2','btnAct3','btnActCustom','btnActSpeak'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+}
+function setStatus(on){ setBadge(on?'connected':'disconnected');
+  ['btnAsk','btnMic','btnStopTalk','btnSalute','btnAct0','btnAct1','btnAct2','btnAct3','btnActCustom','btnActSpeak'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=!on;});}
+function setBadge(kind){
+  const b=document.getElementById('statusBadge'); if(!b) return;
+  const map={disconnected:['','未连接'],connected:['on','已连接'],listening:['listening','🎧 聆听中'],
+             thinking:['thinking','🤔 思考中'],speaking:['speaking','🗣 说话中']};
+  const m=map[kind]||map.connected; b.className=m[0]; b.textContent=m[1];
+}
+function setSession(s){sessionid=s;}
+function showErr(m){document.getElementById('offerError').textContent=m||'';}
+function val(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+
+// ─── SSE 字幕 ──────────────────────────────────────────────
+function openSSE(){
+  if(evtSource)evtSource.close();
+  evtSource=new EventSource('/sse?sessionid='+encodeURIComponent(sessionid));
+  evtSource.onmessage=ev=>{ try{ const d=JSON.parse(ev.data);
+    if(d.status==='start'){
+      const t=d.text||'';
+      if(t===THINK_TEXT) return;            // ③ 占位语音：保持“思考中”字幕/徽章/表情，不切换
+      inThinking=false;                     // 真正回答到达
+      currentBotBubble=addMsg('bot',t); setSubtitle(t); setBadge('speaking');
+      setAvatarState('speaking');
+      post('/mood',{sessionid:String(sessionid),mood:'happy',fade_ms:300}); // 回答时切回微笑
+    } else if(d.status==='end'){
+      if(inThinking) return;                // 占位结束不清屏，等回答
+      setSubtitle(''); setBadge('listening');
+      setAvatarState('listening');          // 回到聆听姿态（内部会切 listening 表情）
+    }
+  }catch(_){} };
+}
+
+// ─── 迎宾流程 ──────────────────────────────────────────────
+let welcomeLoopTimer = null, idleTimer = null, inWelcome = false;
+
+async function startReception(){
+  if(inWelcome) return;
+  if(!sessionid){ connect(); await waitConnected(); }
+  if(!sessionid){ addMsg('sys','⚠ 未连接，无法迎宾'); return; }
+  inWelcome = true; lastWelcome = Date.now();
+  document.getElementById('intro').style.display='none';
+  document.getElementById('video').style.display='block';
+  document.getElementById('btnReception').disabled = true;
+
+  // 服务端编排：敬礼→招手→微笑→问候(put_msg_txt echo)→聆听。前端不再重复发问候，避免双重播报。
+  await post('/welcome',{sessionid:String(sessionid),text:greetText||'',salute_ms:2500,beckon_ms:1500});
+  addMsg('sys','🫡 已触发迎宾序列（敬礼→招手→问候）');
+
+  // 动画+问候估算时长后回到待命/聆听态
+  const est = 4200 + Math.max(3000,(greetText||'').length*350);
+  setTimeout(()=>{
+    inWelcome=false;
+    document.getElementById('btnReception').disabled = !sessionid;
+    if(sessionid) setBadge('listening');
+    resetIdleTimer();
+  }, est);
+}
+
+function toggleWelcomeLoop(on){
+  if(on){
+    document.getElementById('btnStopLoop').style.display='inline-block';
+    resetIdleTimer();
+  } else {
+    stopWelcomeLoop();
+  }
+}
+function stopWelcomeLoop(){
+  document.getElementById('chkAutoLoop').checked = false;
+  document.getElementById('btnStopLoop').style.display='none';
+  if(idleTimer){clearTimeout(idleTimer);idleTimer=null;}
+}
+function resetIdleTimer(){
+  if(idleTimer) clearTimeout(idleTimer);
+  if(!document.getElementById('chkAutoLoop').checked) return;
+  const sec = (Number(val('loopInterval'))||30)*1000;
+  idleTimer = setTimeout(()=>{
+    if(!inWelcome && sessionid) startReception();
+  }, sec);
+}
+async function doSalute(){
+  if(!sessionid)return;
+  await post('/set_audiotype',{audiotype:2,sessionid:String(sessionid)});
+}
+async function doAction(type){
+  if(!sessionid)return alert('请先连接数字人');
+  const d=await post('/set_audiotype',{audiotype:Number(type),sessionid:String(sessionid)});
+  addMsg('sys',`▶ 触发 audiotype=${type} ${d&&d.code===0?'✓':'✗ '+(d&&d.msg||'')}`);
+}
+async function beckonThenSpeak(){
+  if(!sessionid) return alert('请先连接数字人');
+  const t=val('actionText');
+  await post('/set_audiotype',{audiotype:2,sessionid:String(sessionid)}); // 敬礼（custom.json 已定义）
+  if(t){ await humanSay(t,'echo',true); }                                  // 再说配词
+  addMsg('sys',`▶ 先动后说：敬礼 → 说"${t||'(无配词)'}"`);
+}
+async function waitConnected(){ return new Promise(res=>{const c=()=>{if(sessionid&&pc&&pc.connectionState==='connected'){res();}else setTimeout(c,200);};c();}); }
+
+// ─── 提问 ──────────────────────────────────────────────────
+async function askText(){
+  const q=val('question'); if(!q){ return; }
+  if(!sessionid){ alert('请先在设置里连接数字人'); return; }
+  addMsg('user',q); document.getElementById('question').value='';
+  resetIdleTimer();
+  // ③ 思考态：华小盾切“思考”动作/表情 + 播放思考语音 + 字幕，填补 LLM 空窗
+  inThinking=true; setBadge('thinking'); setSubtitle(THINK_TEXT);
+  post('/set_state',{sessionid:String(sessionid),state:'idle'});            // 退出聆听姿态
+  post('/mood',{sessionid:String(sessionid),mood:'thinking',fade_ms:300});  // 思考全身帧
+  await humanSay(THINK_TEXT,'echo',true);   // 思考语音（同时驱动字幕）
+  await humanSay(q,'chat',false);            // 触发 LLM（chat 模式，不掐掉占位）
+}
+async function humanSay(text,type,interrupt){
+  const d=await post('/human',{text,type,interrupt:!!interrupt,sessionid:String(sessionid)});
+  if(d && d.code && d.code!==0){ inThinking=false; setBadge('connected'); addMsg('sys','⚠ 发送失败：'+(d.msg||'未知错误')); }
+  return d;
+}
+
+// ─── 麦克风 ASR：点一下开始，说完自动停（含静音检测）───────────
+async function toggleMic(){
+  if(micState==='idle') return startMic();
+  if(micState==='listening') return stopMic(true);   // 提前手动结束
+}
+async function startMic(){
+  if(!sessionid){ alert('请先连接数字人'); return; }
+  resetIdleTimer();
+  try{ mediaStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1}}); }
+  catch(e){ return alert('无法访问麦克风：'+e.message+'（需 HTTPS，并允许麦克风权限）'); }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  asrWs=new WebSocket(`${proto}://${location.host}/api/asr`);
+  asrWs.onopen=()=>{ asrWs.send(JSON.stringify({chunk_size:[5,10,5],wav_name:'h5',is_speaking:true,chunk_interval:10,mode:'offline',itn:true})); };
+  asrWs.onmessage=ev=>{ let d; try{ d=JSON.parse(ev.data); }catch(_){ return; }
+    if(!d.is_final) return;
+    clearTimeout(processingTimer); closeWs(); setMicState('idle');
+    const t=(d.text||'').trim();
+    if(t){ document.getElementById('question').value=t; askText(); }
+    else { document.getElementById('micHint').textContent='（没听清，请再说一次）'; } };
+  asrWs.onerror=()=>{ addMsg('sys','⚠ 语音识别连接失败：服务器需装 funasr，且 nginx 要放行 /api/asr 的 WebSocket'); if(micState==='listening') stopMic(false); };
+  asrWs.onclose=()=>{
+    if(micState==='listening'){ stopCapture(); setMicState('idle'); document.getElementById('micHint').textContent='（连接被服务器关闭：检查 funasr 是否安装 / nginx 是否放行 WS）'; }
+    else if(micState==='processing'){ clearTimeout(processingTimer); setMicState('idle'); document.getElementById('micHint').textContent='（识别连接中断）'; }
+  };
+  audioCtx=new AudioContext(); const src=audioCtx.createMediaStreamSource(mediaStream);
+  procNode=audioCtx.createScriptProcessor(4096,1,1);
+  const sink=audioCtx.createGain(); sink.gain.value=0;   // 零增益防啸叫/防浏览器自动静音
+  src.connect(procNode); procNode.connect(sink); sink.connect(audioCtx.destination);
+  speechDetected=false; startTs=performance.now(); lastVoiceTs=startTs;
+  procNode.onaudioprocess=e=>{
+    if(micState!=='listening'||!asrWs||asrWs.readyState!==1) return;
+    const ch=e.inputBuffer.getChannelData(0);
+    let sum=0; for(let i=0;i<ch.length;i++){ const v=ch[i]; sum+=v*v; }
+    const rms=Math.sqrt(sum/ch.length), now=performance.now();
+    if(rms>=SPEECH_TH){ speechDetected=true; lastVoiceTs=now; }
+    asrWs.send(floatTo16BitPCM(ch,audioCtx.sampleRate));
+    if(speechDetected && now-lastVoiceTs>SILENCE_MS) return stopMic(true);   // 说完自动停
+    if(now-startTs>MAX_MS) return stopMic(true);                             // 超时兜底
+  };
+  setAvatarState('listening'); setMicState('listening');
+}
+function stopMic(finish){
+  if(finish && asrWs && asrWs.readyState===1) asrWs.send(JSON.stringify({is_speaking:false}));  // 必须：否则服务端不会跑识别
+  setMicState('processing');
+  stopCapture();   // 立即停麦（熄灭红点），但保留 asrWs 等结果
+  clearTimeout(processingTimer);
+  // 首次会现场加载 SenseVoice，可能几十秒，给足超时兜底
+  processingTimer=setTimeout(()=>{ if(micState==='processing'){ closeWs(); setMicState('idle'); document.getElementById('micHint').textContent='（识别超时：首次使用需等模型加载，请再试一次）'; } }, 60000);
+}
+function stopCapture(){
+  if(procNode){try{procNode.disconnect();}catch(e){} procNode=null;}
+  if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
+  if(audioCtx){audioCtx.close().catch(()=>{});audioCtx=null;}
+}
+function closeWs(){ if(asrWs){try{asrWs.close();}catch(e){} asrWs=null;} }
+function teardownMic(){ stopCapture(); closeWs(); }
+function setMicState(s){
+  micState=s; const b=document.getElementById('btnMic'); if(!b) return;
+  b.classList.toggle('rec',s==='listening');
+  b.textContent = s==='listening'?'🛑 停止·聆听中' : s==='processing'?'⏳ 识别中…' : '🎙️ 语音提问';
+  const hint=document.getElementById('micHint');
+  if(s==='listening' && hint) hint.textContent='正在聆听…说完会自动识别（也可再点一次手动结束）';
+  if(s==='processing' && hint) hint.textContent='识别中…';
+  if(s==='idle' && hint) hint.textContent='';
+}
+function floatTo16BitPCM(input,oRate){
+  const tRate=16000, ratio=oRate/tRate, len=Math.floor(input.length/ratio);
+  const buf=new ArrayBuffer(len*2), view=new DataView(buf);
+  for(let i=0;i<len;i++){ let s=Math.max(-1,Math.min(1,input[Math.floor(i*ratio)]));
+    view.setInt16(i*2,s<0?s*0x8000:s*0x7FFF,true);} return buf;
+}
+
+// ─── 工具 ──────────────────────────────────────────────────
+function post(url,body){return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>{});}
+function interrupt(){ if(!sessionid)return; post('/interrupt_talk',{sessionid:String(sessionid)}); setSubtitle(''); setAvatarState('idle'); }
+function setAvatarState(state){ if(!sessionid)return; post('/set_state',{sessionid:String(sessionid),state:state}); }
+function addMsg(role,text){
+  const log=document.getElementById('chatlog'); const el=document.createElement('div');
+  el.className='msg '+role; el.textContent=text; log.appendChild(el); log.scrollTop=log.scrollHeight;
+  return el;
+}
+function setSubtitle(t){document.getElementById('subtitle').textContent=t||'';}
+
+// ─── 摄像头人员识别 → 自动迎宾（⑦） ──────────────────────
+async function toggleCamera(){ if(camStream){ stopCamera(); } else { await startCamera(); } }
+async function startCamera(){
+  try{ camStream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240,facingMode:'front'},audio:false}); }
+  catch(e){ setCamStatus('无法开摄像头：'+e.message+'（需 HTTPS 并授权）'); return; }
+  const v=document.getElementById('camPreview'); v.srcObject=camStream; v.style.display='block';
+  await v.play().catch(()=>{});
+  document.getElementById('btnCam').textContent='关闭摄像头';
+  if('FaceDetector' in window){ try{ faceDetector=new FaceDetector({fastMode:true,maxDetectedObjects:1}); }catch(e){ faceDetector=null; } }
+  setCamStatus(faceDetector?'摄像头开 · 人脸检测中':'摄像头开 · 动作检测中（启发式）', true);
+  camTimer=setInterval(detectPresence, 900);
+}
+function stopCamera(){
+  if(camTimer){clearInterval(camTimer);camTimer=null;}
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  const v=document.getElementById('camPreview'); if(v){v.srcObject=null;v.style.display='none';}
+  faceDetector=null; lastFrame=null;
+  const b=document.getElementById('btnCam'); if(b)b.textContent='开启摄像头';
+  setCamStatus('摄像头关闭', false);
+}
+async function detectPresence(){
+  const v=document.getElementById('camPreview'); if(!v||!v.videoWidth) return;
+  let present=false, how='';
+  if(faceDetector){ try{ const faces=await faceDetector.detect(v); present=faces.length>0; if(present) how='人脸'; }catch(e){ present=false; } }
+  if(!present && motionDetected(v)){ present=true; how='动作'; }
+  if(present){ setCamStatus(`检测到人(${how}) · ${new Date().toLocaleTimeString()}`, true); autoWelcome(); }
+}
+function motionDetected(v){
+  const c=document.getElementById('camCanvas'); if(!c) return false;
+  const ctx=c.getContext('2d',{willReadFrequently:true}); const W=c.width,H=c.height;
+  ctx.drawImage(v,0,0,W,H); const cur=ctx.getImageData(0,0,W,H).data;
+  if(!lastFrame){ lastFrame=new Uint8ClampedArray(cur); return false; }
+  let diff=0; for(let i=0;i<cur.length;i+=4){ diff+=Math.abs(cur[i]-lastFrame[i])+Math.abs(cur[i+1]-lastFrame[i+1])+Math.abs(cur[i+2]-lastFrame[i+2]); }
+  lastFrame.set(cur);
+  return diff/(W*H)/3 > 6;   // 阈值：画面有明显变化→有人活动
+}
+function autoWelcome(){
+  if(!document.getElementById('chkCamWelcome').checked) return;
+  if(inWelcome||inThinking) return;
+  const now=Date.now(); if(now-lastWelcome<60000) return;   // 60s 冷却，避免同一人反复触发
+  setCamStatus('识别到人 → 触发迎宾', true); startReception();
+}
+function setCamStatus(t,on){ const el=document.getElementById('camStatus'); if(!el)return; el.textContent=t; el.className='hint'+(on?' cam-on':''); }
+
+// ─── ② 打字即“聆听中” ──────────────────────────────
+function typingHint(){ if(!sessionid||inThinking) return; setBadge('listening'); setSubtitle('🐯 华小盾正在聆听…'); }
+function onTypeFocus(){ if(!sessionid||inThinking) return; typingHint(); setAvatarState('listening'); }  // 聚焦即摆出聆听姿态
+function initUI(){
+  const q=document.getElementById('question');
+  if(q){ q.addEventListener('focus',onTypeFocus); q.addEventListener('input',typingHint); }
+}
+window.addEventListener('load',async()=>{ await loadKB(); initUI(); });
+window.addEventListener('beforeunload',()=>{ if(evtSource)evtSource.close(); stopCamera(); });
+</script>
+</body>
+</html>

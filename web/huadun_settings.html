@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华小盾 · 设置</title>
+<style>
+  :root{--primary:#c0392b;--gold:#e1a94b;--bg:#12101a;--panel:#1c1826;--line:rgba(255,255,255,.09);
+        --text:#f3ede3;--muted:#9a90a6;--ok:#2ecc71;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter','PingFang SC',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:60px;}
+  header{position:sticky;top:0;z-index:10;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;
+         background:rgba(0,0,0,.35);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);}
+  header h1{margin:0;font-size:19px;letter-spacing:1px;}
+  header h1 .badge{color:var(--gold);font-weight:800;}
+  .wrap{max-width:960px;margin:0 auto;padding:20px 22px;display:flex;flex-direction:column;gap:18px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;}
+  .card h2{margin:0 0 4px;font-size:16px;color:var(--gold);letter-spacing:.5px;}
+  .card .sub{margin:0 0 14px;font-size:12px;color:var(--muted);line-height:1.6;}
+  .field{margin-bottom:12px;}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  input,textarea,select{width:100%;background:#0d0b12;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:14px;font-family:inherit;}
+  textarea{resize:vertical;line-height:1.6;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr;}}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);}
+  .switch:last-child{border-bottom:none;}
+  .switch span{font-size:14px;}
+  .switch small{display:block;color:var(--muted);font-size:11px;margin-top:2px;}
+  .sw{position:relative;width:44px;height:24px;flex:0 0 auto;}
+  .sw input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;inset:0;background:#3a3346;border-radius:24px;transition:.2s;cursor:pointer;}
+  .slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+  .sw input:checked+.slider{background:var(--ok);}
+  .sw input:checked+.slider:before{transform:translateX(20px);}
+  button{cursor:pointer;border:none;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:600;color:#fff;transition:transform .12s,filter .2s;}
+  button:active{transform:scale(.96);}
+  .btn-main{background:linear-gradient(135deg,var(--primary),#8e2a20);}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),#c68a2e);color:#241d05;}
+  .btn-ghost{background:#33283c;color:var(--text);}
+  .btn-danger{background:#5a2530;color:#ffb4b4;}
+  .btn-sm{padding:6px 10px;font-size:12px;}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .actions{display:flex;gap:10px;margin-top:6px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  td{padding:6px 8px;border-bottom:1px solid var(--line);}
+  td:first-child{color:var(--muted);width:40%;}
+  td code{color:var(--gold);}
+  .kv,.faq{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-bottom:8px;align-items:start;}
+  @media(max-width:640px){.kv,.faq{grid-template-columns:1fr 1fr auto;}}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#000000dd;color:#fff;padding:11px 20px;
+         border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:60;}
+  #toast.show{opacity:1;} #toast.err{background:#5a1f1fee;}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:#2a2334;color:var(--muted);margin-left:8px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙️ <span class="badge">华小盾</span> · 设置</h1>
+  <button class="btn-gold" onclick="location.href='/huadun_chat.html'">▶ 打开对话页</button>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>对话行为设置 <span class="pill">存本机浏览器</span></h2>
+    <p class="sub">这些是访客对话页的运行方式，保存在当前浏览器，无需重启服务。改完点底部「保存行为设置」。</p>
+    <div class="grid2">
+      <div class="field"><label>Avatar ID</label><input id="cfgAvatarId" placeholder="huadun"></div>
+      <div class="field"><label>音色 / VoiceType（可选）</label><input id="cfgVoice" placeholder="留空则用服务端默认；腾讯云填数字如 101001"></div>
+    </div>
+    <div class="field"><label>问答模式</label>
+      <select id="cfgMode">
+        <option value="chat">chat — 大模型 + 知识库回答（需 LLM key）</option>
+        <option value="echo">echo — 直接复读文本（零 key）</option>
+      </select>
+    </div>
+    <div class="switch"><span>连接后自动迎宾<small>自动敬礼 + 播报问候语</small></span>
+      <label class="sw"><input type="checkbox" id="cfgGreet"><i class="slider"></i></label></div>
+    <div class="switch"><span>打开页面即自动连接<small>关闭则需手动，用于调试</small></span>
+      <label class="sw"><input type="checkbox" id="cfgAuto"><i class="slider"></i></label></div>
+    <div class="switch"><span>显示文字输入框<small>麦克风不可用时的兜底</small></span>
+      <label class="sw"><input type="checkbox" id="cfgText"><i class="slider"></i></label></div>
+    <div class="switch"><span>首屏显示公司介绍<small>迎宾前展示 intro 图/文字</small></span>
+      <label class="sw"><input type="checkbox" id="cfgIntro"><i class="slider"></i></label></div>
+    <div class="actions"><button class="btn-main" onclick="saveBehavior()">💾 保存行为设置</button></div>
+  </div>
+
+  <div class="card">
+    <h2>服务端运行配置 <span class="pill">只读 · 改启动命令/重启生效</span></h2>
+    <p class="sub">以下为 app.py 启动参数，浏览器无法修改。要换 <b>TTS 引擎 / LLM 提供商</b> 等，请在服务器上改启动命令后重启。</p>
+    <table id="srvTable"><tr><td colspan="2" style="color:var(--muted)">加载中…</td></tr></table>
+  </div>
+
+  <div class="card">
+    <h2>知识库编辑 <span class="pill">保存到 data/huadun_kb.json · 即时生效</span></h2>
+    <p class="sub">数字人问答依据这里的内容。改完点「保存知识库」，后端会写文件并热加载（<b>无需重启</b>），下一次提问即生效。旧文件自动备份为 <code>*.bak</code>。</p>
+
+    <div class="field"><label>人设 persona</label><textarea id="kbPersona" rows="3"></textarea></div>
+    <div class="field"><label>问候语 greeting（迎宾时播报）</label><input id="kbGreeting"></div>
+
+    <div class="grid2">
+      <div class="field"><label>介绍标题 intro.title</label><input id="kbIntroTitle"></div>
+      <div class="field"><label>介绍图片文件名 intro.image（放 web/ 下）</label><input id="kbIntroImg" placeholder="huadun_intro.png"></div>
+    </div>
+    <div class="field"><label>介绍文字 intro.text（无图时显示）</label><textarea id="kbIntroText" rows="2"></textarea></div>
+
+    <div class="field"><label>公司资料 facts（键=主题，值=事实描述）</label><div id="factsBox"></div>
+      <button class="btn-ghost btn-sm" onclick="addFact()">＋ 添加一条资料</button></div>
+
+    <div class="field"><label>常见问答 faq（问 / 答）</label><div id="faqBox"></div>
+      <button class="btn-ghost btn-sm" onclick="addFaq()">＋ 添加一条问答</button></div>
+
+    <div class="actions">
+      <button class="btn-main" onclick="saveKB()">💾 保存知识库</button>
+      <button class="btn-ghost" onclick="loadKB(true)">↺ 重新载入</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const DEF_CFG={avatarId:'huadun',voice:'',mode:'chat',greetOnStart:true,autoConnect:true,allowText:true,showIntro:true};
+let cfg={...DEF_CFG}, kbRaw={};
+
+function loadBehavior(){
+  try{ const s=localStorage.getItem('huadun_cfg'); if(s) cfg={...DEF_CFG,...JSON.parse(s)}; }catch(e){}
+  cfgAvatarId.value=cfg.avatarId||''; cfgVoice.value=cfg.voice||''; cfgMode.value=cfg.mode||'chat';
+  cfgGreet.checked=!!cfg.greetOnStart; cfgAuto.checked=!!cfg.autoConnect;
+  cfgText.checked=!!cfg.allowText; cfgIntro.checked=!!cfg.showIntro;
+}
+function saveBehavior(){
+  cfg={ avatarId:cfgAvatarId.value.trim(), voice:cfgVoice.value.trim(), mode:cfgMode.value,
+        greetOnStart:cfgGreet.checked, autoConnect:cfgAuto.checked, allowText:cfgText.checked, showIntro:cfgIntro.checked };
+  localStorage.setItem('huadun_cfg',JSON.stringify(cfg));
+  toast('行为设置已保存（本机浏览器）');
+}
+
+async function loadServer(){
+  try{
+    const r=await fetch('/api/admin/config'); const j=await r.json();
+    const c=(j.data&&j.data.config)||{};
+    const rows=[['模型 model',c.model],['Avatar',c.avatar_id],['传输 transport',c.transport],
+      ['TTS 引擎 tts',c.tts],['LLM 提供商 llm_provider',c.llm_provider],['LLM 模型 llm_model',c.llm_model||'(默认)'],
+      ['知识库 kb_path',c.kb_path],['HTTP 端口 listenport',c.listenport],['batch_size',c.batch_size]];
+    srvTable.innerHTML=rows.map(([k,v])=>`<tr><td>${k}</td><td><code>${v==null?'-':v}</code></td></tr>`).join('');
+  }catch(e){ srvTable.innerHTML='<tr><td colspan="2" style="color:#ff8f8f">读取服务端配置失败</td></tr>'; }
+}
+
+async function loadKB(manual){
+  try{
+    const r=await fetch('/api/kb'); const j=await r.json(); kbRaw=j.data||{};
+    kbPersona.value=kbRaw.persona||''; kbGreeting.value=kbRaw.greeting||'';
+    const intro=kbRaw.intro||{};
+    kbIntroTitle.value=intro.title||''; kbIntroImg.value=intro.image||''; kbIntroText.value=intro.text||'';
+    factsBox.innerHTML=''; faqBox.innerHTML='';
+    const facts=kbRaw.facts||{}; Object.keys(facts).forEach(k=>addFact(k,facts[k]));
+    (kbRaw.faq||[]).forEach(it=>addFaq(it.q,it.a));
+    if(manual) toast('知识库已重新载入');
+  }catch(e){ toast('加载知识库失败：'+e.message,true); }
+}
+function addFact(k='',v=''){
+  const row=document.createElement('div'); row.className='kv';
+  row.innerHTML=`<input class="fk" placeholder="主题，如：主要业务" value="${esc(k)}">
+                 <textarea class="fv" rows="2" placeholder="事实描述">${esc(v)}</textarea>
+                 <button class="btn-danger btn-sm" onclick="this.parentNode.remove()">✕</button>`;
+  factsBox.appendChild(row);
+}
+function addFaq(q='',a=''){
+  const row=document.createElement('div'); row.className='faq';
+  row.innerHTML=`<input class="qq" placeholder="问：… " value="${esc(q)}">
+                 <textarea class="qa" rows="2" placeholder="答：…">${esc(a)}</textarea>
+                 <button class="btn-danger btn-sm" onclick="this.parentNode.remove()">✕</button>`;
+  faqBox.appendChild(row);
+}
+function collectKB(){
+  const facts={}; factsBox.querySelectorAll('.kv').forEach(r=>{
+    const k=r.querySelector('.fk').value.trim(), v=r.querySelector('.fv').value.trim(); if(k) facts[k]=v; });
+  const faq=[]; faqBox.querySelectorAll('.faq').forEach(r=>{
+    const q=r.querySelector('.qq').value.trim(), a=r.querySelector('.qa').value.trim(); if(q||a) faq.push({q,a}); });
+  return { ...kbRaw,
+    persona:kbPersona.value.trim(), greeting:kbGreeting.value.trim(),
+    intro:{ ...(kbRaw.intro||{}), title:kbIntroTitle.value.trim(), image:kbIntroImg.value.trim(), text:kbIntroText.value.trim() },
+    facts, faq };
+}
+async function saveKB(){
+  const kb=collectKB();
+  if(!kb.persona||!kb.greeting){ return toast('persona 与 greeting 不能为空',true); }
+  try{
+    const r=await fetch('/api/kb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(kb)});
+    const j=await r.json();
+    if(j.code&&j.code!==0) return toast('保存失败：'+(j.msg||''),true);
+    kbRaw=kb; toast('知识库已保存并热加载，下次提问即生效');
+  }catch(e){ toast('保存失败：'+e.message,true); }
+}
+
+function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let toastTimer=null;
+function toast(m,isErr){ const el=document.getElementById('toast'); el.textContent=m; el.className=isErr?'err show':'show';
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.className='',3000); }
+
+window.addEventListener('load',()=>{ loadBehavior(); loadServer(); loadKB(false); });
+</script>
+</body>
+</html>

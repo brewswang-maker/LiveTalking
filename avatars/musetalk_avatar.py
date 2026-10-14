@@ -128,7 +128,7 @@ class MuseReal(BaseAvatar):
     
 
     @torch.no_grad()
-    def inference_batch(self, index, audiofeat_batch):
+    def inference_batch(self, index, audiofeat_batch, audio_frames=None):
         # 这里的 index 是针对当前 avatar 的索引
         # 返回一个 batch 的推理结果，batch 大小由 self.batch_size 决定
         length = len(self.input_latent_list_cycle)
@@ -154,6 +154,9 @@ class MuseReal(BaseAvatar):
 
     def paste_back_frame(self,pred_frame,idx:int):
         bbox = self.coord_list_cycle[idx]
+        # 兼容 dict 格式 coords.pkl（P1 升级后含 mouth/eyes）
+        if isinstance(bbox, dict):
+            bbox = bbox["mouth"]
         ori_frame = self.frame_list_cycle[idx].copy()
         x1, y1, x2, y2 = bbox
 

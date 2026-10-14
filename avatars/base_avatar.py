@@ -361,9 +361,11 @@ class BaseAvatar:
             else:
                 if current_speaking and not last_speaking and self.custom_index.get(1) is not None: #从静音到说话切换,并且有自定义静态视频
                     index = 0
+                if current_speaking and not last_speaking and hasattr(self, 'mapper'): #查表嘴部：静音→说话重置平滑状态
+                    self.mapper.reset()
                 t = time.perf_counter()
 
-                pred = self.inference_batch(index, audiofeat_batch)
+                pred = self.inference_batch(index, audiofeat_batch, audio_frames)
 
                 counttime += (time.perf_counter() - t)
                 count += self.batch_size

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华小盾 · API 测试面板</title>
+<style>
+  :root{--bg:#0f1219;--panel:#171c26;--panel2:#1e2431;--accent:#3b82f6;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--text:#e5e7eb;--muted:#9ca3af;--border:#252b3a;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'JetBrains Mono','Menlo','PingFang SC',monospace;background:var(--bg);color:var(--text);font-size:13px;}
+  header{padding:12px 20px;background:#0a0d13;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+  header h1{margin:0;font-size:15px;color:var(--accent);letter-spacing:1px;}
+  header .sessionInfo{display:flex;gap:14px;align-items:center;font-size:11px;}
+  header .sessionInfo code{background:#0f172a;color:var(--ok);padding:2px 8px;border-radius:4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;}
+
+  .layout{display:grid;grid-template-columns:minmax(360px,420px) 1fr;gap:14px;padding:14px 20px;}
+  @media(max-width:1100px){.layout{grid-template-columns:1fr;}}
+
+  /* 左侧：视频 + 会话控制 */
+  .leftCol{display:flex;flex-direction:column;gap:12px;}
+  .stageWrap{background:#000;border-radius:8px;overflow:hidden;position:relative;aspect-ratio:720/1280;max-height:60vh;}
+  #video{width:100%;height:100%;object-fit:contain;}
+  #sub{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;font-size:16px;color:#fff;text-align:center;background:linear-gradient(transparent,rgba(0,0,0,.8));text-shadow:0 2px 4px #000;}
+  .connCard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;}
+  .connCard h3{margin:0 0 8px;font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;}
+  .connCard .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .connCard input{flex:1;min-width:120px;}
+  .stateChip{display:inline-flex;gap:6px;font-size:11px;color:var(--muted);}
+  .stateChip .dot{width:8px;height:8px;border-radius:50%;background:#4b5563;}
+  .stateChip .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+
+  /* 右侧：API 测试卡片网格 */
+  .apis{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+  .apiCard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;}
+  .apiCard h3{margin:0 0 4px;font-size:13px;color:var(--accent);display:flex;align-items:center;gap:6px;}
+  .apiCard .method{font-size:10px;padding:2px 6px;border-radius:3px;background:#1e40af;color:#dbeafe;font-weight:700;}
+  .apiCard .method.GET{background:#065f46;color:#a7f3d0;}
+  .apiCard .path{font-size:11px;color:var(--muted);margin-bottom:8px;font-family:inherit;}
+  .apiCard label{font-size:10px;color:var(--muted);display:block;margin:6px 0 2px;}
+  .apiCard input, .apiCard select, .apiCard textarea{width:100%;background:#0d1117;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-family:inherit;font-size:12px;}
+  .apiCard textarea{resize:vertical;min-height:60px;}
+  .apiCard button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:7px 12px;font-size:12px;cursor:pointer;font-weight:600;margin-top:8px;width:100%;}
+  .apiCard button:hover{filter:brightness(1.15);}
+  .apiCard button:disabled{opacity:.4;cursor:not-allowed;}
+  .apiCard .result{margin-top:8px;padding:8px;background:#0a0d13;border-radius:5px;font-size:11px;color:var(--muted);max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all;border-left:3px solid var(--border);}
+  .apiCard .result.ok{border-left-color:var(--ok);}
+  .apiCard .result.err{border-left-color:var(--err);}
+  .apiCard .quickBtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .apiCard .quickBtns button{width:auto;margin:0;padding:5px 10px;font-size:11px;background:var(--panel2);color:var(--text);}
+  .apiCard .quickBtns button:hover{background:#2d3548;}
+
+  /* 底部：事件流日志 */
+  .logSection{padding:0 20px 20px;}
+  .logTabs{display:flex;gap:8px;margin-bottom:8px;}
+  .logTabs button{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:5px 5px 0 0;font-size:12px;cursor:pointer;border-bottom:none;}
+  .logTabs button.active{background:var(--panel2);color:var(--accent);border-color:var(--accent);}
+  .logArea{background:#0a0d13;border:1px solid var(--border);border-radius:0 5px 5px 5px;padding:10px;max-height:200px;overflow-y:auto;font-size:11px;line-height:1.6;}
+  .logArea .entry{padding:2px 0;border-bottom:1px dashed #1a1f2b;}
+  .logArea .entry .ts{color:var(--muted);margin-right:6px;}
+  .logArea .entry .mth{color:var(--accent);margin-right:6px;font-weight:700;}
+  .logArea .entry .ok{color:var(--ok);}
+  .logArea .entry .err{color:var(--err);}
+  .logArea .entry .evt{color:var(--warn);}
+  .clearBtn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;font-size:11px;border-radius:4px;cursor:pointer;margin-left:auto;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧪 华小盾 · API 测试面板</h1>
+  <div class="sessionInfo">
+    <span class="stateChip"><span class="dot" id="connDot"></span> <span id="connText">未连接</span></span>
+    <span>sessionid: <code id="sidShow">-</code></span>
+    <button onclick="location.href='huadun_reception.html'" style="background:var(--panel2);color:var(--text);border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:11px;">🎭 使用界面</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ═══ 左列：视频 + 连接 ═══ -->
+  <div class="leftCol">
+    <div class="connCard">
+      <h3>① WebRTC 连接</h3>
+      <div class="row">
+        <input id="offerAvatar" value="huadun" placeholder="avatar">
+        <input id="offerRefAudio" value="zh-CN-XiaoxiaoNeural" placeholder="refaudio">
+      </div>
+      <div class="row">
+        <button onclick="connect()" id="btnConnect" style="flex:1;background:var(--ok);">连接</button>
+        <button onclick="disconnect()" id="btnDisconnect" style="flex:1;background:var(--err);" disabled>断开</button>
+      </div>
+      <div class="row" style="font-size:10px;color:var(--muted);margin-top:4px;">
+        PC 状态: <span id="pcState">-</span> · ICE: <span id="iceState">-</span>
+      </div>
+    </div>
+
+    <div class="stageWrap">
+      <video id="video" autoplay playsinline controls></video>
+      <audio id="audio" autoplay></audio>
+      <div id="sub"></div>
+    </div>
+
+    <div class="connCard">
+      <h3>② SSE 实时事件</h3>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;" id="ssePreview">等待连接...</div>
+    </div>
+
+    <div class="connCard">
+      <h3>③ 说话状态查询</h3>
+      <div class="row">
+        <button onclick="querySpeaking()" style="flex:1;background:var(--panel2);color:var(--text);">/is_speaking</button>
+      </div>
+      <div id="speakingResult" style="font-size:11px;color:var(--muted);">-</div>
+    </div>
+  </div>
+
+  <!-- ═══ 右列：API 测试卡片网格 ═══ -->
+  <div>
+    <div class="apis">
+
+      <!-- /human echo -->
+      <div class="apiCard">
+        <h3>Text → TTS <span class="method POST">POST</span></h3>
+        <div class="path">/human · type=echo</div>
+        <label>text</label>
+        <input id="echoText" value="欢迎您来到华盾">
+        <label>interrupt</label>
+        <select id="echoInt"><option value="true">true</option><option value="false">false</option></select>
+        <button onclick="callHuman('echo')">发送 echo</button>
+        <div class="result" id="r-echo">-</div>
+      </div>
+
+      <!-- /human chat -->
+      <div class="apiCard">
+        <h3>LLM Chat <span class="method POST">POST</span></h3>
+        <div class="path">/human · type=chat</div>
+        <label>text (问题)</label>
+        <input id="chatText" value="华盾什么时候成立的？">
+        <button onclick="callHuman('chat')">发送 chat</button>
+        <div class="result" id="r-chat">-</div>
+      </div>
+
+      <!-- /set_audiotype -->
+      <div class="apiCard">
+        <h3>动作触发 <span class="method POST">POST</span></h3>
+        <div class="path">/set_audiotype</div>
+        <label>audiotype</label>
+        <input id="actType" type="number" value="2" min="0" max="99">
+        <div class="quickBtns">
+          <button onclick="setAct(0)">0 归零</button>
+          <button onclick="setAct(1)">1 待机</button>
+          <button onclick="setAct(2)">2 敬礼</button>
+          <button onclick="setAct(3)">3 招手</button>
+        </div>
+        <button onclick="callAudiotype()">触发</button>
+        <div class="result" id="r-act">-</div>
+      </div>
+
+      <!-- /set_state -->
+      <div class="apiCard">
+        <h3>交互状态 <span class="method POST">POST</span></h3>
+        <div class="path">/set_state · speaking/listening/idle</div>
+        <label>state</label>
+        <select id="stType">
+          <option value="idle">idle 空闲</option>
+          <option value="listening">listening 聆听</option>
+          <option value="speaking">speaking 说话</option>
+        </select>
+        <div class="quickBtns">
+          <button onclick="setState('idle')">idle</button>
+          <button onclick="setState('listening')">listening</button>
+          <button onclick="setState('speaking')">speaking</button>
+        </div>
+        <button onclick="callState()">切换</button>
+        <div class="result" id="r-state">-</div>
+      </div>
+
+      <!-- /mood -->
+      <div class="apiCard">
+        <h3>表情切换 <span class="method POST">POST</span></h3>
+        <div class="path">/mood · EmotionMood</div>
+        <label>mood</label>
+        <select id="moodName">
+          <option value="neutral">neutral 中性</option>
+          <option value="happy">happy 开心</option>
+          <option value="surprised">surprised 惊讶</option>
+          <option value="thinking">thinking 思考</option>
+          <option value="listening">listening 聆听</option>
+        </select>
+        <label>fade_ms (可选)</label>
+        <input id="moodFade" type="number" placeholder="300" value="300">
+        <div class="quickBtns">
+          <button onclick="moodQuick('neutral')">neutral</button>
+          <button onclick="moodQuick('happy')">happy</button>
+          <button onclick="moodQuick('surprised')">surprised</button>
+          <button onclick="moodQuick('thinking')">thinking</button>
+          <button onclick="moodQuick('listening')">listening</button>
+        </div>
+        <button onclick="callMood()">切换表情</button>
+        <div class="result" id="r-mood">-</div>
+      </div>
+
+      <!-- /mouse -->
+      <div class="apiCard">
+        <h3>视线跟随 <span class="method POST">POST</span></h3>
+        <div class="path">/mouse · GazeScheduler</div>
+        <div class="row">
+          <label style="flex:1;">x (0~1)</label>
+          <label style="flex:1;">y (0~1)</label>
+        </div>
+        <div class="row">
+          <input id="mx" type="number" step="0.1" value="0.5" style="flex:1;">
+          <input id="my" type="number" step="0.1" value="0.5" style="flex:1;">
+        </div>
+        <div class="quickBtns">
+          <button onclick="mousePreset(0.5,0.5)">中心</button>
+          <button onclick="mousePreset(0.2,0.5)">左</button>
+          <button onclick="mousePreset(0.8,0.5)">右</button>
+          <button onclick="mousePreset(0.5,0.2)">上</button>
+          <button onclick="mousePreset(0.5,0.8)">下</button>
+        </div>
+        <button onclick="callMouse()">上报坐标</button>
+        <div class="result" id="r-mouse">-</div>
+      </div>
+
+      <!-- /welcome -->
+      <div class="apiCard">
+        <h3>迎宾序列 <span class="method POST">POST</span></h3>
+        <div class="path">/welcome · 敬礼→招手→微笑→问候→聆听</div>
+        <label>text (可选，留空取 KB.greeting)</label>
+        <input id="wText" placeholder="欢迎您来到华盾">
+        <div class="row">
+          <label style="flex:1;">salute_ms</label>
+          <label style="flex:1;">beckon_ms</label>
+        </div>
+        <div class="row">
+          <input id="wSal" type="number" value="2500" style="flex:1;">
+          <input id="wBk" type="number" value="1500" style="flex:1;">
+        </div>
+        <button onclick="callWelcome()">🫡 触发迎宾</button>
+        <div class="result" id="r-welcome">-</div>
+      </div>
+
+      <!-- /interrupt_talk -->
+      <div class="apiCard">
+        <h3>打断说话 <span class="method POST">POST</span></h3>
+        <div class="path">/interrupt_talk · flush_talk</div>
+        <label>说明</label>
+        <div style="font-size:11px;color:var(--muted);">清空当前 TTS 队列，中断正在说的内容。</div>
+        <button onclick="callInterrupt()">✋ 打断</button>
+        <div class="result" id="r-interrupt">-</div>
+      </div>
+
+      <!-- /humanaudio (file upload) -->
+      <div class="apiCard">
+        <h3>上传音频 <span class="method POST">POST</span></h3>
+        <div class="path">/humanaudio · multipart file</div>
+        <label>选择 wav 文件</label>
+        <input type="file" id="auFile" accept=".wav,audio/*">
+        <button onclick="callAudio()">上传播放</button>
+        <div class="result" id="r-audio">-</div>
+      </div>
+
+      <!-- /record -->
+      <div class="apiCard">
+        <h3>录制控制 <span class="method POST">POST</span></h3>
+        <div class="path">/record · start/end</div>
+        <div class="quickBtns">
+          <button onclick="callRecord('start_record')">● 开始录制</button>
+          <button onclick="callRecord('end_record')">■ 结束录制</button>
+        </div>
+        <div class="result" id="r-record">-</div>
+      </div>
+
+      <!-- /api/kb GET -->
+      <div class="apiCard">
+        <h3>读取知识库 <span class="method GET">GET</span></h3>
+        <div class="path">/api/kb</div>
+        <label>返回字段</label>
+        <div style="font-size:11px;color:var(--muted);">persona / greeting / facts / faq / intro</div>
+        <button onclick="callGetKB()">读取</button>
+        <div class="result" id="r-kb">-</div>
+      </div>
+
+      <!-- /api/admin/sessions -->
+      <div class="apiCard">
+        <h3>会话列表 <span class="method GET">GET</span></h3>
+        <div class="path">/api/admin/sessions</div>
+        <label>显示活跃 session 状态</label>
+        <div style="font-size:11px;color:var(--muted);">speaking / recording / model / avatar_id</div>
+        <button onclick="callSessions()">刷新</button>
+        <div class="result" id="r-sessions">-</div>
+      </div>
+
+      <!-- /api/admin/config -->
+      <div class="apiCard">
+        <h3>全局配置 <span class="method GET">GET</span></h3>
+        <div class="path">/api/admin/config</div>
+        <label>opt 参数快照</label>
+        <div style="font-size:11px;color:var(--muted);">batch_size / transport / model 等</div>
+        <button onclick="callConfig()">查看</button>
+        <div class="result" id="r-config">-</div>
+      </div>
+
+      <!-- 组合：先动后说 -->
+      <div class="apiCard">
+        <h3>⚡ 组合：先动后说</h3>
+        <div class="path">set_audiotype → human echo</div>
+        <div class="row">
+          <label style="flex:1;">audiotype</label>
+          <label style="flex:2;">text</label>
+        </div>
+        <div class="row">
+          <input id="cmAct" type="number" value="2" style="flex:1;">
+          <input id="cmText" value="您好，欢迎光临华盾！" style="flex:2;">
+        </div>
+        <button onclick="callComboAction()">▶ 执行</button>
+        <div class="result" id="r-combo">-</div>
+      </div>
+
+      <!-- 组合：表情+说话 -->
+      <div class="apiCard">
+        <h3>⚡ 组合：表情+说话</h3>
+        <div class="path">mood → human echo</div>
+        <div class="row">
+          <label style="flex:1;">mood</label>
+          <label style="flex:2;">text</label>
+        </div>
+        <div class="row">
+          <select id="cbMood" style="flex:1;">
+            <option value="happy">happy</option><option value="surprised">surprised</option>
+            <option value="thinking">thinking</option><option value="listening">listening</option>
+          </select>
+          <input id="cbText" value="让我想想..." style="flex:2;">
+        </div>
+        <button onclick="callComboMood()">▶ 执行</button>
+        <div class="result" id="r-combo2">-</div>
+      </div>
+
+    </div>
+
+    <!-- 底部日志 -->
+    <div class="logSection" style="padding:14px 0 0;">
+      <div class="logTabs">
+        <button class="active" onclick="switchTab(event,'tabApi')">API 调用记录</button>
+        <button onclick="switchTab(event,'tabSSE')">SSE 事件流</button>
+        <button onclick="switchTab(event,'tabRaw')">原始消息</button>
+        <button class="clearBtn" onclick="clearLogs()">清空</button>
+      </div>
+      <div class="logArea" id="tabApi"></div>
+      <div class="logArea" id="tabSSE" style="display:none;"></div>
+      <div class="logArea" id="tabRaw" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── 全局状态 ─────────────────────────────────────────
+let pc = null, sessionid = null, evtSource = null;
+const $ = id => document.getElementById(id);
+const val = id => $(id)?.value.trim() ?? '';
+const num = (id, d=0) => Number(val(id)) || d;
+
+// ─── 日志 ─────────────────────────────────────────────
+function ts(){ const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`; }
+function logApi(method, path, req, resp, ok){
+  const box = $('tabApi');
+  const e = document.createElement('div');
+  e.className = 'entry';
+  e.innerHTML = `<span class="ts">${ts()}</span><span class="mth">${method}</span> ${path} ` +
+    `<span class="${ok?'ok':'err'}">${ok?'✓':'✗'}</span><br>` +
+    `<span style="color:#6b7280;">→ ${JSON.stringify(req).slice(0,150)}</span><br>` +
+    `<span style="color:#6b7280;">← ${(typeof resp==='string'?resp:JSON.stringify(resp)).slice(0,200)}</span>`;
+  box.insertBefore(e, box.firstChild);
+  trim(box, 100);
+}
+function logSSE(data){
+  const box = $('tabSSE');
+  const e = document.createElement('div');
+  e.className = 'entry';
+  e.innerHTML = `<span class="ts">${ts()}</span><span class="evt">SSE</span> ${JSON.stringify(data)}`;
+  box.insertBefore(e, box.firstChild);
+  trim(box, 200);
+}
+function logRaw(msg){
+  const box = $('tabRaw');
+  const e = document.createElement('div'); e.className='entry';
+  e.innerHTML = `<span class="ts">${ts()}</span> ${typeof msg==='string'?msg:JSON.stringify(msg)}`;
+  box.insertBefore(e, box.firstChild);
+  trim(box, 200);
+}
+function trim(box, max){ while(box.children.length > max) box.removeChild(box.lastChild); }
+function clearLogs(){ ['tabApi','tabSSE','tabRaw'].forEach(id=>$(id).innerHTML=''); }
+function switchTab(evt, id){
+  document.querySelectorAll('.logTabs button').forEach(b=>b.classList.remove('active'));
+  evt.target.classList.add('active');
+  ['tabApi','tabSSE','tabRaw'].forEach(t=>$(t).style.display=t===id?'block':'none');
+}
+function setResult(key, data, ok){
+  const box = $('r-'+key); if(!box) return;
+  box.textContent = typeof data==='string' ? data : JSON.stringify(data, null, 2);
+  box.className = 'result ' + (ok?'ok':'err');
+}
+
+// ─── HTTP 工具 ────────────────────────────────────────
+async function apiPost(path, body){
+  const t0 = performance.now();
+  try{
+    const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json();
+    const dt = Math.round(performance.now()-t0);
+    const ok = j && j.code === 0;
+    logApi('POST', path, body, {...j, _ms:dt}, ok);
+    return j;
+  }catch(e){ logApi('POST', path, body, String(e), false); return {code:-1, msg:String(e)}; }
+}
+async function apiGet(path){
+  const t0 = performance.now();
+  try{
+    const r = await fetch(path);
+    const j = await r.json();
+    const dt = Math.round(performance.now()-t0);
+    logApi('GET', path, {}, {...j, _ms:dt}, true);
+    return j;
+  }catch(e){ logApi('GET', path, {}, String(e), false); return {code:-1, msg:String(e)}; }
+}
+
+// ─── WebRTC 连接 ──────────────────────────────────────
+function connect(){
+  pc = new RTCPeerConnection({sdpSemantics:'unified-plan'});
+  pc.addTransceiver('video',{direction:'recvonly'});
+  pc.addTransceiver('audio',{direction:'recvonly'});
+  pc.addEventListener('track', ev=>{
+    if(ev.track.kind==='video') $('video').srcObject = ev.streams[0];
+    else $('audio').srcObject = ev.streams[0];
+  });
+  pc.addEventListener('connectionstatechange', ()=>{
+    $('pcState').textContent = pc.connectionState;
+    if(pc.connectionState==='connected'){ setConnUI(true); openSSE(); }
+    else if(['disconnected','failed','closed'].includes(pc.connectionState)){ setConnUI(false); }
+  });
+  pc.addEventListener('icegatheringstatechange', ()=>{ $('iceState').textContent = pc.iceGatheringState; });
+
+  pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>new Promise(res=>{
+    if(pc.iceGatheringState==='complete') return res();
+    const c=()=>{ if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',c);res();} };
+    pc.addEventListener('icegatheringstatechange',c);
+  })).then(()=>{
+    const body = {sdp:pc.localDescription.sdp, type:pc.localDescription.type};
+    if(val('offerAvatar')) body.avatar = val('offerAvatar');
+    if(val('offerRefAudio')) body.refaudio = val('offerRefAudio');
+    return fetch('/offer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }).then(r=>r.json()).then(a=>{
+    logApi('POST','/offer',{avatar:val('offerAvatar')}, {code:a.code, has_sdp:!!a.sdp, sessionid:a.sessionid}, a.code===0||!a.code);
+    if(a.code && a.code!==0) throw new Error(a.msg||'server error');
+    if(a.sessionid){ sessionid = a.sessionid; $('sidShow').textContent = sessionid.slice(0,12); }
+    return pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp:a.sdp}));
+  }).catch(e=>{ logApi('POST','/offer',{}, String(e), false); alert('连接失败：'+e.message); });
+  $('btnConnect').disabled = true;
+}
+function disconnect(){
+  if(evtSource){ evtSource.close(); evtSource=null; }
+  if(pc){ pc.close(); pc=null; }
+  sessionid=null; $('sidShow').textContent='-';
+  $('video').srcObject=null; $('connText').textContent='已断开'; setConnUI(false);
+  $('btnConnect').disabled = false;
+}
+function setConnUI(on){
+  $('connDot').classList.toggle('on', on);
+  $('connText').textContent = on?'已连接':'未连接';
+  $('btnDisconnect').disabled = !on;
+  $('btnConnect').disabled = on;
+}
+
+// ─── SSE ──────────────────────────────────────────────
+function openSSE(){
+  if(evtSource) evtSource.close();
+  evtSource = new EventSource('/sse?sessionid='+encodeURIComponent(sessionid));
+  evtSource.onmessage = ev=>{
+    try{
+      const d = JSON.parse(ev.data);
+      logSSE(d);
+      logRaw(`[SSE] ${ev.data}`);
+      if(d.status==='start'){ $('sub').textContent = d.text||''; }
+      else if(d.status==='end'){ $('sub').textContent = ''; }
+    }catch(_){ logRaw(`[SSE-nonJSON] ${ev.data}`); }
+  };
+  evtSource.onerror = ()=>{ logRaw('[SSE] ⚠ error'); };
+}
+
+// ─── API 调用 ─────────────────────────────────────────
+async function callHuman(type){
+  if(!requireSid())return;
+  const text = type==='echo' ? val('echoText') : val('chatText');
+  const body = {text, type, interrupt: type==='echo' ? (val('echoInt')==='true') : true, sessionid:String(sessionid)};
+  const r = await apiPost('/human', body);
+  setResult(type, r, r.code===0);
+}
+function setAct(n){ $('actType').value = n; }
+async function callAudiotype(){
+  if(!requireSid())return;
+  const r = await apiPost('/set_audiotype', {audiotype:num('actType',0), sessionid:String(sessionid)});
+  setResult('act', r, r.code===0);
+}
+function setState(s){ $('stType').value = s; }
+async function callState(){
+  if(!requireSid())return;
+  const r = await apiPost('/set_state', {state:val('stType'), sessionid:String(sessionid)});
+  setResult('state', r, r.code===0);
+}
+function moodQuick(m){ $('moodName').value = m; }
+async function callMood(){
+  if(!requireSid())return;
+  const body = {mood:val('moodName'), sessionid:String(sessionid)};
+  const fade = num('moodFade', 0); if(fade>0) body.fade_ms = fade;
+  const r = await apiPost('/mood', body);
+  setResult('mood', r, r.code===0);
+}
+function mousePreset(x,y){ $('mx').value=x; $('my').value=y; }
+async function callMouse(){
+  if(!requireSid())return;
+  const r = await apiPost('/mouse', {x:Number(val('mx')||0.5), y:Number(val('my')||0.5), sessionid:String(sessionid)});
+  setResult('mouse', r, r.code===0);
+}
+async function callWelcome(){
+  if(!requireSid())return;
+  const body = {sessionid:String(sessionid), text:val('wText'), salute_ms:num('wSal',2500), beckon_ms:num('wBk',1500)};
+  const r = await apiPost('/welcome', body);
+  setResult('welcome', r, r.code===0);
+}
+async function callInterrupt(){
+  if(!requireSid())return;
+  const r = await apiPost('/interrupt_talk', {sessionid:String(sessionid)});
+  setResult('interrupt', r, r.code===0);
+}
+async function callAudio(){
+  if(!requireSid())return;
+  const f = $('auFile').files[0];
+  if(!f) return setResult('audio', '✗ 未选择文件', false);
+  const fd = new FormData(); fd.append('sessionid', String(sessionid)); fd.append('file', f);
+  const t0 = performance.now();
+  try{
+    const r = await fetch('/humanaudio', {method:'POST', body:fd});
+    const j = await r.json();
+    logApi('POST','/humanaudio',{file:f.name,size:f.size}, {...j,_ms:Math.round(performance.now()-t0)}, j.code===0);
+    setResult('audio', j, j.code===0);
+  }catch(e){ setResult('audio', String(e), false); }
+}
+async function callRecord(type){
+  if(!requireSid())return;
+  const r = await apiPost('/record', {type, sessionid:String(sessionid)});
+  setResult('record', r, r.code===0);
+}
+async function callGetKB(){
+  const r = await apiGet('/api/kb');
+  setResult('kb', r.data||r, r.code===0);
+}
+async function callSessions(){
+  const r = await apiGet('/api/admin/sessions');
+  setResult('sessions', r.data||r, r.code===0);
+}
+async function callConfig(){
+  const r = await apiGet('/api/admin/config');
+  setResult('config', r.data||r, r.code===0);
+}
+async function querySpeaking(){
+  if(!requireSid())return;
+  const r = await apiPost('/is_speaking', {sessionid:String(sessionid)});
+  $('speakingResult').textContent = `${ts()} → ${JSON.stringify(r.data)}`;
+}
+
+// 组合场景
+async function callComboAction(){
+  if(!requireSid())return;
+  const act = num('cmAct',2), text = val('cmText');
+  setResult('combo', '⏳ 触发动作...', true);
+  await apiPost('/set_audiotype', {audiotype:act, sessionid:String(sessionid)});
+  await new Promise(r=>setTimeout(r, 2200));
+  setResult('combo', '⏳ 说话...', true);
+  const rr = await apiPost('/human', {text, type:'echo', interrupt:true, sessionid:String(sessionid)});
+  setResult('combo', `✓ 完成: audiotype=${act} + "${text}"`, rr.code===0);
+}
+async function callComboMood(){
+  if(!requireSid())return;
+  const mood = val('cbMood'), text = val('cbText');
+  await apiPost('/mood', {mood, fade_ms:200, sessionid:String(sessionid)});
+  const rr = await apiPost('/human', {text, type:'echo', interrupt:true, sessionid:String(sessionid)});
+  setResult('combo2', `✓ 完成: mood=${mood} + "${text}"`, rr.code===0);
+}
+
+function requireSid(){ if(!sessionid){ setResult('_','✗ 请先连接',false); alert('请先点击「连接」按钮'); return false; } return true; }
+
+window.addEventListener('beforeunload', ()=>{ if(evtSource)evtSource.close(); if(pc)pc.close(); });
+logRaw('测试面板已加载 · 点击「连接」建立 WebRTC');
+</script>
+</body>
+</html>

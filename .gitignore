@@ -15,6 +15,14 @@ pretrained
 *.mp4
 .DS_Store
 workspace/log_ngp.txt
+
+# ── 本地密钥与生成产物（绝不提交）──
+.env
+.env.*
+*.pyc
+screenshot_*.png
+*.tar.gz
+*.canvas.status.json
 .idea
 models/
 *.log

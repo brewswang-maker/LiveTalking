@@ -26,12 +26,13 @@ class EdgeTTS(BaseTTS):
         self.input_stream.seek(0)
         stream = self.__create_bytes_stream(self.input_stream)
         streamlen = stream.shape[0]
+        duration_ms = int(streamlen * 1000 / self.sample_rate)  # P1 viseme: 整句时长供嘴形时间线
         idx=0
         while streamlen >= self.chunk and self.state==State.RUNNING:
             eventpoint={}
             streamlen -= self.chunk
             if idx==0:
-                eventpoint={'status':'start','text':text}
+                eventpoint={'status':'start','text':text,'duration_ms':duration_ms}
             elif streamlen<self.chunk:
                 eventpoint={'status':'end','text':text}
             eventpoint.update(**textevent) #eventpoint={'status':'end','text':text,'msgevent':textevent}
